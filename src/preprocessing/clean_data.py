@@ -249,10 +249,12 @@ def run_cleaning_pipeline(
     for col in free_text_fill:
         df[col] = df[col].fillna("Not Provided")
 
-    # 8. Remove exact duplicates AFTER all normalization/standardization (excluding job_id)
+    # 8. Remove exact duplicates AFTER all normalization/standardization (excluding job_id),
+    # then drop job_id to prevent dataset-ordering leakage during modeling
     content_cols = [c for c in df.columns if c != "job_id"]
     exact_dupes_removed = int(df.duplicated(subset=content_cols, keep="first").sum())
     df = df.drop_duplicates(subset=content_cols, keep="first").reset_index(drop=True)
+    df = df.drop(columns=["job_id"], errors="ignore")
 
     # Compute IQR outlier flags on deduplicated valid salaries
     df["salary_outlier_flag"] = (
@@ -260,13 +262,11 @@ def run_cleaning_pipeline(
     ).astype("int8")
 
     # 9. Enforce clean numeric dtypes
-    df["job_id"] = df["job_id"].astype("int32")
     for bin_col in ["telecommuting", "has_company_logo", "has_questions", "fraudulent"]:
         df[bin_col] = df[bin_col].astype("int8")
 
     # 10. Order columns logically
     ordered_cols = [
-        "job_id",
         "title",
         "location",
         "country_code",
